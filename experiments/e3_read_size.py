@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from applet.engine.imageops import nearest_resize
 from applet.engine.palette import Palette
 from applet.engine.render import render_cross
 
@@ -47,6 +48,15 @@ SYSTEM = (
     "tile. Answer the numbered questions about the tiles. Read each tile's "
     "position from its letter label, not from its screen position."
 )
+
+SEPARATE_SYSTEM = (
+    "You are a precise visual question-answering model. You are shown five "
+    "SEPARATE square pixel-art tiles, one per image, in the fixed order "
+    "given in the text (image 1 = C center, image 2 = N north, image 3 = E "
+    "east, image 4 = S south, image 5 = W west). Answer the numbered "
+    "questions about the tiles, using those image numbers."
+)
+
 
 FORMAT = (
     "Answer each question on its own line, starting with the question "
@@ -179,12 +189,57 @@ def ask(url: str, model: str, data_url: str, text: str,
     return content, data.get("usage", {}), dt
 
 
+SEPARATE_NAMES = ("center", "north", "east", "south", "west")
+
+
+def ask_separate(url: str, model: str, tiles: dict[str, np.ndarray],
+                 text: str, timeout: int = 600) -> tuple[str, dict, float]:
+    """Same probe, but the five tiles go in as separate images (Felix's
+    original design): one intro text part fixing the image->role order,
+    five image parts, then the questions."""
+    intro = (
+        "Here are five separate pixel-art tiles, one per image, in this "
+        "order: image 1 = C (center), image 2 = N (north), image 3 = E "
+        "(east), image 4 = S (south), image 5 = W (west).")
+    content: list[dict] = [{"type": "text", "text": intro}]
+    for name in SEPARATE_NAMES:
+        content.append({"type": "image_url",
+                        "image_url": {"url": img_to_data_url(tiles[name])}})
+    content.append({"type": "text", "text": text})
+    payload = {
+        "model": model,
+        "temperature": 0.1,
+        "max_tokens": 300,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "messages": [
+            {"role": "system", "content": SEPARATE_SYSTEM},
+            {"role": "user", "content": content},
+        ],
+    }
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/v1/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"})
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.load(resp)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:800]}") from None
+    dt = time.time() - t0
+    content_txt = data["choices"][0]["message"]["content"]
+    return content_txt, data.get("usage", {}), dt
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8080")
     ap.add_argument("--model", default="qwen3.8-27b-ud-q6-k-xl-multimodal")
     ap.add_argument("--sizes", default="256,512,1024")
     ap.add_argument("--out", default=str(OUT_ROOT))
+    ap.add_argument("--separate", action="store_true",
+                    help="send the five tiles as separate images instead of "
+                         "one labeled cross composite")
     args = ap.parse_args()
 
     pal = Palette.load("config/palette_dev64.json")
@@ -199,18 +254,34 @@ def main() -> None:
         user_text = "Questions:\n" + "\n".join(
             f"{i+1}. {q}" for i, (q, _, _) in enumerate(qs)) + "\n\n" + FORMAT
         for rs in (sizes if kind == "main" else [512]):
-            comp = render_cross(tiles, rs)
-            tag = f"{kind}_{rs}"
-            comp_path = out / f"composite_{tag}.png"
-            Image.fromarray(comp, mode="RGB").save(comp_path)
-            print(f"[{tag}] composite {comp.shape[0]}x{comp.shape[1]} -> {comp_path}")
-            try:
-                content, usage, dt = ask(args.url, args.model,
-                                          img_to_data_url(comp), user_text)
-            except RuntimeError as e:
-                print(f"[{tag}] FAILED: {e}")
-                results.append({"tag": tag, "size": rs, "error": str(e)})
-                continue
+            if args.separate:
+                tag = f"{kind}_{rs}_sep"
+                sep = {n: nearest_resize(tiles[n], rs) for n in SEPARATE_NAMES}
+                strip = np.hstack([nearest_resize(tiles[n], 256)
+                                   for n in SEPARATE_NAMES])
+                strip_path = out / f"separate_{tag}.png"
+                Image.fromarray(strip, mode="RGB").save(strip_path)
+                print(f"[{tag}] 5 separate tiles @ {rs} -> {strip_path}")
+                try:
+                    content, usage, dt = ask_separate(args.url, args.model,
+                                                      sep, user_text)
+                except RuntimeError as e:
+                    print(f"[{tag}] FAILED: {e}")
+                    results.append({"tag": tag, "size": rs, "error": str(e)})
+                    continue
+            else:
+                comp = render_cross(tiles, rs)
+                tag = f"{kind}_{rs}"
+                comp_path = out / f"composite_{tag}.png"
+                Image.fromarray(comp, mode="RGB").save(comp_path)
+                print(f"[{tag}] composite {comp.shape[0]}x{comp.shape[1]} -> {comp_path}")
+                try:
+                    content, usage, dt = ask(args.url, args.model,
+                                              img_to_data_url(comp), user_text)
+                except RuntimeError as e:
+                    print(f"[{tag}] FAILED: {e}")
+                    results.append({"tag": tag, "size": rs, "error": str(e)})
+                    continue
             answers = parse_answers(content, len(qs))
             per_q = []
             for (q, kindq, expected), ans in zip(qs, answers):
@@ -226,9 +297,11 @@ def main() -> None:
                             "n_total": len(qs), "questions": per_q,
                             "raw": content})
 
-    with open(out / "e3_results.json", "w") as f:
+    fname = out / ("e3_separate_results.json" if args.separate
+                   else "e3_results.json")
+    with open(fname, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nsaved {out / 'e3_results.json'}")
+    print(f"\nsaved {fname}")
 
 
 if __name__ == "__main__":
