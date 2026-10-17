@@ -84,3 +84,38 @@ def test_user_text():
     assert "Step 7" in t and "(2,3)" in t and "grow the crystals" in t
     t2 = build_user_text(req(instruction=""))
     assert "Run instruction" not in t2
+
+
+def test_llamacpp_disables_thinking(monkeypatch):
+    """E3 (2026-10-17): the Qwen3.8 multimodal deployment is a thinking
+    model; without enable_thinking=False the whole token budget goes to
+    reasoning_content and the visible prompt comes back empty."""
+    import json
+    from applet.rule.llamacpp import LlamaCppBackend
+
+    captured = {}
+
+    class FakeResp:
+        def __init__(self, body):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self._body
+
+    def fake_urlopen(r, timeout=None):
+        captured["payload"] = json.loads(r.data)
+        return FakeResp(json.dumps(
+            {"choices": [{"message": {"content": "a red tile"}}]}).encode())
+
+    monkeypatch.setattr("applet.rule.llamacpp.urllib.request.urlopen",
+                        fake_urlopen)
+    b = LlamaCppBackend(url="http://x", model="m")
+    res = b.rule(req())
+    assert res.prompt == "a red tile"
+    assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": False}

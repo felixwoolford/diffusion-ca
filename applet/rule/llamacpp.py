@@ -52,6 +52,10 @@ class LlamaCppBackend:
         payload = {
             "model": self.model,
             "temperature": self.temperature,
+            # Qwen3.8 is a thinking model: without this, the whole budget
+            # goes to reasoning_content and the visible content is empty
+            # (found in E3, 2026-10-17).
+            "chat_template_kwargs": {"enable_thinking": False},
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": [
