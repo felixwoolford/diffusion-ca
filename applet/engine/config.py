@@ -64,7 +64,7 @@ class Config:
     palette_path: str | None = None      # json/npy palette file (picked in E5)
     initial_field: str | None = None     # square PNG, grid_n*art_size px, tiled initial field
     # sizes
-    write_size: int = 1024               # generation size (multiple of 32, of art_size)
+    write_size: int = 512                # generation size (multiple of 32, of art_size)
     read_size: int = 512                 # neighborhood render size (multiple of 32)
     # dynamics
     arm: str = "edit_self"

@@ -106,7 +106,7 @@ dynamics are tuned. It must contain:
 
 ### 2.4 Generation arms (all three are developed)
 
-All arms share: write at `write_size` (default **1024**; test 512, 256),
+All arms share: write at `write_size` (default **512**; test 1024, 256),
 turbo-8-step sampling exactly as in the base workflows (do not "fix"), then
 **block-quantize** to the art grid (below).
 
@@ -190,8 +190,8 @@ as a mitigation dial.
 | `grid_n` | 16 | cells per side; 32 is an open variant |
 | `art_size` | 32 | ground-truth tile size; test 64, 16 |
 | `render_scale` | 2 | display = art × scale (default display 1024²) |
-| `palette_n` | 64 | global fixed palette; source: fixed file (dev picks, E5) or `kmeans(init)` |
-| `write_size` | 1024 | generation size; test 512 (alignment-matched for 32-art), 256 |
+| `palette_n` | 64 | global fixed palette; source: fixed file (dev picks, E5) or `kmeans(init)`. E4 (2026-10-17): the random dev stand-in is far from the model's color space (quantize loss ~41/51) — build the initial palette **from the model's outputs**, not by hand |
+| `write_size` | 512 | generation size; default set 2026-10-17 from E2/E4 (flatness, alignment, fidelity, latency all peak at 512); test 1024, 256 |
 | `read_size` | 512 | neighborhood-render size for the rule LLM; multiple of 32 |
 | `arm` | `edit_self` | `t2i` \| `edit_self` \| `edit_neighborhood`; can be per-cell for experiments |
 | `schedule` | `random_uniform` | policy module name |

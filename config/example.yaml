@@ -10,7 +10,7 @@ palette_path: null    # e.g. config/palette_64.json (picked in E5) — required 
 initial_field: null   # square PNG (grid_n*art_size px) to tile the initial field; null -> random
 
 # --- sizes ---
-write_size: 1024      # generation size; test 512 (alignment-matched for 32-art), 256
+write_size: 512       # generation size; default per E2/E4 (2026-10-17); test 1024, 256
 read_size: 512        # neighborhood render size for the rule LLM; multiple of 32
 
 # --- dynamics ---

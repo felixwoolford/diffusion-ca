@@ -7,7 +7,7 @@ import pytest
 def test_defaults_match_spec():
     c = Config()
     assert (c.grid_n, c.art_size, c.render_scale, c.palette_n) == (16, 32, 2, 64)
-    assert (c.write_size, c.read_size) == (1024, 512)
+    assert (c.write_size, c.read_size) == (512, 512)
     assert (c.arm, c.schedule, c.K) == ("edit_self", "random_uniform", 16)
     assert c.rule_backend == "llamacpp"
     assert c.concurrency == 4
