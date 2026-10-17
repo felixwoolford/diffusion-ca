@@ -56,6 +56,7 @@ uniformity_warn: 0.5
 #     prompt_node: "497"
 #     size_via: resolution_selector   # node 13 (megapixels) — or empty_latent node 488
 #     size_node: "13"
+#     size_node_small: "488"          # node 13 megapixels min 0.1 (=320px); smaller -> 488
 #     seed_node: "490"
 #   edit_self:
 #     workflow: workflows/edit_ca.json

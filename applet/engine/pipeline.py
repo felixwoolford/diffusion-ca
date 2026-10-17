@@ -116,7 +116,12 @@ class ComfyGenerator(Generator):
                 overrides[spec.size_node] = {"width": ws, "height": ws}
             elif spec.size_via == "resolution_selector":
                 mp = (ws / 1024) ** 2
-                overrides[spec.size_node] = {"megapixels": mp, **spec.size_extra}
+                if mp < 0.1 and spec.size_node_small:
+                    # node 13 megapixels min is 0.1 (320px at 1:1) — use the
+                    # direct EmptyLatentImage for smaller writes
+                    overrides[spec.size_node_small] = {"width": ws, "height": ws}
+                else:
+                    overrides[spec.size_node] = {"megapixels": mp, **spec.size_extra}
             else:
                 raise ValueError(f"unknown size_via {spec.size_via!r} for arm {req.arm!r}")
         if spec.seed_node:
