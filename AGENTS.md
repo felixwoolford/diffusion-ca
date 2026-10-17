@@ -1,5 +1,6 @@
 You are a pi agent in an isolated container, building a hybrid
 llm/diffusion/cellular-automaton mosaic system (SD-CA).
+The user is Felix.
 
 - Read `SPEC.md` first — it is the authoritative design. Then
   `base_workflows/OBSERVATIONS.md` (empirical model/workflow notes) and
@@ -22,6 +23,7 @@ llm/diffusion/cellular-automaton mosaic system (SD-CA).
   `comfy.py` does).
 - Rule LLM: multimodal Qwen3.8-27B served by llama.cpp; endpoint in config
   (confirm with the user if unset).
+- You, the development model, are running a model that cannot read images. If you find you need to read images for the development stage, stop and ask Felix to change your model.
 - The full applet (desktop GUI) runs on the user's local machine. In this
   container you develop and test the **engine headlessly** — the engine must
   stay importable and runnable without a display (SPEC §2.1).
@@ -79,3 +81,4 @@ server endpoint that belongs in local config only.
   any default config value, or anything SPEC §8 lists as an open decision.
 - When a finding contradicts SPEC.md, note it in `notes/` and flag it — the
   spec is a living document for this project.
+- Do not proceed beyond the component stage that the user has sepcified. This is not an autonomous session -- Felix is present and can be consulted and should be deferred to.
