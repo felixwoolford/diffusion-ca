@@ -83,6 +83,10 @@ RuleResult:
   reasoning: str    # optional; logged only
 ```
 
+The applet renders the tiles for the rule LLM in one of two ways
+(`rule_render`, §2.6): a single labeled cross-composite image, or five
+separate one-tile images (Felix's original design; E3 validated both).
+
 Backends:
 - **`llamacpp`** — direct HTTP to a llama.cpp server (OpenAI-compatible
   `/v1/chat/completions`, multimodal Qwen3.8-27B; endpoint in config, confirm
@@ -150,11 +154,26 @@ fallback; **never a plain mean** — means blend edges into mud).
 ### 2.6 Neighborhood render (for the rule LLM)
 
 The 5 tiles are nearest-upscaled to `read_size` (default **512**; test 256,
-1024 — must be a multiple of 32) and composed as a **labeled cross layout**
-(N/E/S/W + C, labels drawn into the composite so the LLM can't misassign
-positions). Per-tile visual-token cost at read_size (Qwen3.8-27B: 32×32 input
-px per visual token): 256² → 64, 512² → 256, 1024² → 1024. A 512² composite
-≈ 1280 visual tokens per rule call.
+1024 — must be a multiple of 32) and given to the rule LLM in one of two
+renderings (`rule_render`):
+
+- **`composite`** (default): a **labeled cross layout** (N/E/S/W + C, labels
+  drawn into the composite so the LLM can't misassign positions), one
+  (3×read_size)² image. Visual tokens at 256/512/1024: 576 / 2304 / 9216 —
+  at 512, 1024 of the 2304 are the four empty corner cells.
+- **`separate`**: five one-tile images, one per tile, with the image→role
+  order fixed in text (image 1 = C, 2 = N, 3 = E, 4 = S, 5 = W). Visual
+tokens at 256/512/1024: 320 / 1280 / 5120.
+
+Per-tile visual-token cost at read_size (Qwen3.8-27B: 32×32 input px per
+visual token): 256² → 64, 512² → 256, 1024² → 1024.
+
+E3 (2026-10-17): both renderings answer fixed probe questions 100% correctly
+(composite 28/28 at 256/512/1024; separate 14/14 at 512). The deployment's
+image cap is 2048²/4096 tokens **per image**: composite 1024 (3072²) is
+downscaled server-side to ~683 px/tile, while separate 1024 (five 1024²
+images) is uncapped. Separate is cheaper at 512. Behavioural comparison on
+evolving content is deferred (E6); default stays `composite`.
 
 Reading is more robust than writing at a given size (per our model notes), so
 read_size and write_size are independent config values.
@@ -193,6 +212,7 @@ as a mitigation dial.
 | `palette_n` | 64 | global fixed palette; source: fixed file (dev picks, E5) or `kmeans(init)`. E4 (2026-10-17): the random dev stand-in is far from the model's color space (quantize loss ~41/51) — build the initial palette **from the model's outputs**, not by hand |
 | `write_size` | 512 | generation size; default set 2026-10-17 from E2/E4 (flatness, alignment, fidelity, latency all peak at 512); test 1024, 256 |
 | `read_size` | 512 | neighborhood-render size for the rule LLM; multiple of 32 |
+| `rule_render` | `composite` | `composite` (one labeled cross image) \| `separate` (five one-tile images, order fixed in text); E3: both 100% on probes, separate cheaper at 512 and the only uncapped path to 1024 |
 | `arm` | `edit_self` | `t2i` \| `edit_self` \| `edit_neighborhood`; can be per-cell for experiments |
 | `schedule` | `random_uniform` | policy module name |
 | `K` | 16 | cells per step |

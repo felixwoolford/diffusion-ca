@@ -69,10 +69,13 @@ backend's prompt goes straight into the `PrimitiveStringMultiline` node.
     the entire max_tokens budget goes to reasoning and the visible `content`
     is empty (finish_reason=length). The engine `llamacpp` backend sets this
     (E3, 2026-10-17; regression-tested). `pi_agent` unaffected.
-  - **Image cap: 4096 visual tokens (2048×2048).** Larger images are
-    downscaled server-side (verified via prompt_tokens in E3: a 3072²
+  - **Image cap: 4096 visual tokens (2048×2048) PER IMAGE.** Larger images
+    are downscaled server-side (verified via prompt_tokens in E3: a 3072²
     composite is billed as exactly 4096 visual tokens). So read_size 1024
-    composites (3072²) are served at ~683 px/tile.
+    *composites* (3072²) are served at ~683 px/tile — but the *separate*
+    render mode (five one-tile images) sends five 1024² images, each under
+    the cap: true 1024 px/tile at 5×1024 = 5120 visual tokens total (E3
+    separate probe).
   - pi's model catalog (`/root/.pi/agent/models.json`) already knows the
     multimodal id (input: text+image, temp 0.7), so `pi_agent` could use
     `--model qwen3.8-27b-ud-q6-k-xl-multimodal` once it is loaded.
@@ -134,6 +137,18 @@ Headless engine built and unit-tested (64 tests, `uv run python -m pytest`):
   template (deterministic), llamacpp (OpenAI-compatible multimodal),
   pi_agent (headless `pi -p --no-tools ...` — in this container the rule model
   IS the dev model; keep concurrency 1 with it).
+  - **Dual render mode (2026-10-17, Felix's original design):**
+    `rule_render: composite | separate` (SPEC §2.6). composite = one labeled
+    cross image (3×read_size)²; separate = five one-tile images, order fixed
+    in text (1=C, 2=N, 3=E, 4=S, 5=W — `SEPARATE_ORDER`/`SEPARATE_INTRO` in
+    `rule/prompts.py`, the single source of truth for both backends). E3:
+    both 100% on probe questions; separate is cheaper at 512 (1280 vs 2304
+    visual tokens — the composite pays 1024 for its four empty corners) and
+    the only uncapped path to 1024. Default stays `composite` pending the
+    behavioural comparison (E6). pi_agent separate mode: five @files; pi's
+    docs don't document exact part ordering, but the system prompt fixes the
+    image order so either layout is unambiguous (untested live — the
+    multimodal model is only loaded on demand).
 - `applet/run.py` — `python -m applet.run --config x.yaml --steps N --headless`
   (headless is a no-op flag for now). Field init: resume snapshot > initial
   field PNG > random.
@@ -194,9 +209,11 @@ Stage 1 = **engine core first**: headless modules in `applet/engine/` +
 Stage 2 = **experiments E1–E7 (SPEC §6), approved 2026-10-17**.
 Status 2026-10-17: **E1 ✅** (16× VAE factor confirmed), **E2 ✅** (write-size
 matrix; edit arms ≈ lossless copy channel; 512 sweet spot), **E3 ✅** (rule
-reads composites 28/28 at all read sizes; 1024 capped at ~683 px/tile by the
-4096-visual-token image cap), **E4 ✅** (frame holds; 512 flattest; dev64
-palette far from model color space). **E5 pending** (palette from model
+reads composites 28/28 at all read sizes; composite 1024 capped at ~683
+px/tile by the per-image 4096-visual-token cap; **separate reads — Felix's
+original design — 14/14 at 512, cheaper and uncapped at 1024**; both modes
+now in the engine via `rule_render`), **E4 ✅** (frame holds; 512 flattest;
+dev64 palette far from model color space). **E5 pending** (palette from model
 outputs, incl. a quantize-stability metric), **E6 pending** (collapse watch),
 **E7 pending** (pixel-art LoRA A/B). Felix runs experiments one at a time with
 explicit go-ahead per experiment (2026-10-17: "don't proceed with any other
