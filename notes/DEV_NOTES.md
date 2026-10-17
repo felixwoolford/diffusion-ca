@@ -164,6 +164,18 @@ E5 and for reading every fidelity number until then.**
   collapses toward ~0 for flat blocks, and per-seed color-identity drift
   (E2 follow-up: green `[22,198,44]` → adjacent `[49,216,18]`) maps onto the
   same/adjacent swatch instead of a "wrong color".
+- **Mechanism (E2 splotch diagnosis, 2026-10-17):** the damage is not a
+  color shift but *instability*. t2i_1024's green `[35,153,42]` (std ≈ 2,
+  visually flat) sits 46.9/46.9/48.1 from three dev-palette entries — the
+  argmin boundary passes through it, so per-pixel nearest flips 63/31/6%
+  among them and the block-mode ground truth becomes a 3-color art-px
+  patchwork (the "splotch" Felix saw in `t2i_1024/quantized_32.png`).
+  Swapping one slot to the model's actual green → 99.8% uniform. The edit
+  arms don't show it (they copy palette-made references → 100% single
+  index). The quantize algorithm itself (SPEC §2.4: nearest-then-mode) is
+  correct. → E5 candidate-palette scoring must include **quantize stability**
+  (per-pixel nearest-vs-second-nearest margin over a real-output corpus),
+  not just mean loss.
 
 ## Stage plan (agreed with Felix, 2026-10-17)
 
