@@ -1,0 +1,21 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# runtime state and bulk generation output (evidence images are committed under notes/)
+state/
+images_out/
+
+# local run configs (commit *.example.* instead)
+config/*.local.*
+*.local.toml
+*.local.yaml
+
+# editor / OS
+*.swp
+*.swo
+.DS_Store
