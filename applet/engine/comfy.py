@@ -149,17 +149,22 @@ class ComfyClient:
         The server keeps the *original* filename (the `name` form field is
         ignored) — pass a local file already named as you want it, or use
         as_name to copy it to a temp file under that name first.
+
+        The file part itself carries the field name `image`; do NOT also send
+        an empty text field `image` — ComfyUI rejects that with a bare 400.
         """
         local = Path(local)
         tmp: Path | None = None
         if as_name and local.name != as_name:
-            tmp = Path(os.environ.get("TMPDIR", "/tmp")) / f"sdca_{as_name}"
+            # the temp file must be named EXACTLY as_name: the server keeps
+            # the original filename and ignores the `name` form field
+            tmp = Path(os.environ.get("TMPDIR", "/tmp")) / as_name
             shutil.copyfile(local, tmp)
             src = tmp
         else:
             src = local
         try:
-            body, ctype = _multipart({"image": "", "overwrite": "true"},
+            body, ctype = _multipart({"overwrite": "true"},
                                      "image", src.name, src.read_bytes(),
                                      "application/octet-stream")
             name = self._post("/upload/image", body, ctype).get("name")
