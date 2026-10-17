@@ -146,6 +146,25 @@ correct) + clean resume from snapshot.
 - edit.json `508` switch=true uses `505` (fixed-size latent) — set 505's
   width/height for write_size; leave the switch alone.
 
+## Palette: the dev64 stand-in is far from the model's color space (E4 finding, 2026-10-17)
+
+Felix (2026-10-17): **this finding is very important — keep it in mind for
+E5 and for reading every fidelity number until then.**
+
+- Quantize loss (max-channel RGB distance to the nearest `palette_dev64.json`
+  color) is **~41 mean / 51 p95 at every write size** (E4), and essentially
+  **no output pixel is within 16 RGB of a dev-palette color**. The model's
+  natural flat colors sit systematically far from the random stand-in.
+- Consequence: post-quantize "exact match" scores (E2) partly measure palette
+  mismatch, not just generation quality; the **near-match (within 64) column
+  is the more honest metric** until the real palette exists.
+- **E5 must build the real 64-color palette from the model's own outputs**
+  (kmeans over a corpus of E1–E4-style generations — the SPEC's
+  `kmeans(init)` source option), not by hand. Expected effects: quantize loss
+  collapses toward ~0 for flat blocks, and per-seed color-identity drift
+  (E2 follow-up: green `[22,198,44]` → adjacent `[49,216,18]`) maps onto the
+  same/adjacent swatch instead of a "wrong color".
+
 ## Stage plan (agreed with Felix, 2026-10-17)
 
 Stage 1 = **engine core first**: headless modules in `applet/engine/` +
