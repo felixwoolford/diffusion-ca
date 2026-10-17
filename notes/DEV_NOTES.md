@@ -36,14 +36,37 @@ places. Current graphs (API format, node id → class):
 Consequence for the engine: no enhancer bypass needed in any arm — the rule
 backend's prompt goes straight into the `PrimitiveStringMultiline` node.
 
+**Built copies (2026-10-17, see OBSERVATIONS revision):**
+- `workflows/t2i_ca.json` = byte-identical copy (nothing to change for direct t2i).
+- `workflows/edit_ca.json` = edit.json minus node `475` and `510.images.image_2`
+  (single-reference form); slot `image_1` → `470`.
+- `workflows/edit_neigh_ca.json` = edit.json plus new `LoadImage` nodes `471`/`473`/`474`
+  wired as `510.images.image_3`/`4`/`5` (five-reference form);
+  slots: `image_1→470, image_2→475, image_3→471, image_4→473, image_5→474`
+  (`472` is taken by ImageCompare, so slot ids are not contiguous).
+
 ## Environment
 
-- **Rule LLM = the dev model itself.** `PI_MODEL=qwen3.8-27b-ud-q6-k-xl`,
-  `PI_PROVIDER=llama.cpp` (env vars in the container). Felix (2026-10-17): rule
-  calls should direct headless pi subagents to this same model; it's RAM-cached
+- **Rule LLM = the dev model's multimodal variant.** `PI_MODEL=
+  qwen3.8-27b-ud-q6-k-xl`, `PI_PROVIDER=llama.cpp` (env vars in the container).
+  Felix (2026-10-17): rule calls should target this same model; it's RAM-cached
   and cheap, but **cannot run in parallel with the dev agent's own work** →
   when `rule_backend: pi_agent`, use `concurrency: 1` (one rule call at a time,
   sequenced, not overlapped with other model work).
+- **llama.cpp router at `http://127.0.0.1:8080`** (checked 2026-10-17 ~17:00 UTC,
+  `GET /v1/models`, nonstandard `status.loaded` field per model):
+  - `qwen3.8-27b-ud-q6-k-xl` — LOADED; this is the dev model. It **refuses image
+    input** (text-only deployment; a test `pi -p` with an @image asked Felix to
+    switch models). So `pi_agent` with the default model CANNOT read tiles.
+  - `qwen3.8-27b-ud-q6-k-xl-multimodal` — **UNLOADED**; the rule model. No
+    auto-load and no load endpoint found from inside the container (400 "model
+    is not loaded"; probed /api/models, /models/load, ...). Felix (or the host)
+    must load it before any vision rule call. `llamacpp` backend config:
+    `llm_url: http://127.0.0.1:8080`, `llm_model: qwen3.8-27b-ud-q6-k-xl-multimodal`.
+  - pi's model catalog (`/root/.pi/agent/models.json`) already knows the
+    multimodal id (input: text+image, temp 0.7), so `pi_agent` could use
+    `--model qwen3.8-27b-ud-q6-k-xl-multimodal` once it is loaded.
+  - Also listed (unloaded): gemma-4-31b-it variants.
 - Python 3.14.7 at `/opt/venv`; stack pinned with uv (`.python-version` = 3.14,
   `uv.lock`): numpy, pillow, pyyaml (+ dev pytest). `uv run pytest` from repo root.
 - ComfyUI servers (SSH tunnels, check every run via `GET /models/diffusion_models`):
@@ -127,6 +150,12 @@ correct) + clean resume from snapshot.
 
 Stage 1 = **engine core first**: headless modules in `applet/engine/` +
 `applet/rule/` with unit tests, no remote generation yet. ✅ done.
-Next: experiments E1–E7 (SPEC §6) — E1 (VAE alignment probe) first, needs
-`workflows/t2i_ca.json` copy. Then GUI (toolkit still unconfirmed, PySide6
-suggested).
+Stage 2 = **experiments E1–E7 (SPEC §6), approved 2026-10-17**. Re-read the spec
+on 2026-10-17 (post-compaction): E1 = **checkerboard prompt at 1024²** — do the
+block edges land on 16-px multiples? (confirms the 16× VAE factor, §4). E2 =
+write-size matrix {1024, 512, 256} × all three arms. E3 = read-size matrix
+{256, 512, 1024} with fixed probe questions for the rule's vision (needs the
+multimodal model loaded). E4 = frame adherence/blockiness. E5 = palette. E6 =
+collapse watch (20–50 steps, K=16, each arm). E7 = pixel-art LoRA A/B.
+Experiment scripts live in `experiments/`; results + evidence in `notes/E*.md`.
+Then GUI (toolkit still unconfirmed, PySide6 suggested).
