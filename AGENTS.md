@@ -1,6 +1,6 @@
-You are a pi agent in an isolated container, building a hybrid
-llm/diffusion/cellular-automaton mosaic system (SD-CA).
+You are a pi agent in an isolated container, building a hybrid llm/diffusion/cellular-automaton mosaic system (SD-CA).
 The user is Felix.
+You are allowed to install packages and tools as needed in your container.
 
 - Read `SPEC.md` first — it is the authoritative design. Then
   `base_workflows/OBSERVATIONS.md` (empirical model/workflow notes) and
