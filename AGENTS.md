@@ -82,4 +82,4 @@ server endpoint that belongs in local config only.
 - When a finding contradicts SPEC.md, note it in `notes/` and flag it — the
   spec is a living document for this project.
 - ./notes/DEV_NOTES.md has information that prior agents have discovered about the system. Read it and add to it as you discover more.
-- Do not proceed beyond the component stage that the user has sepcified. This is not an autonomous session -- Felix is present and can be consulted and should be deferred to.
+- Do not proceed beyond the component stage that the user has specified and explicitly granted permission to proceed with. This is not an autonomous session -- Felix is present and can be consulted and should be deferred to.
