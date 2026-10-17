@@ -19,7 +19,7 @@ def pal():
 
 
 def make_cfg(tmp_path, arm="t2i", **kw):
-    cfg = Config(
+    base = dict(
         grid_n=2, art_size=8, write_size=32, read_size=32,
         render_scale=1, palette_n=8,
         arm=arm, schedule="random_uniform", K=2,
@@ -28,8 +28,24 @@ def make_cfg(tmp_path, arm="t2i", **kw):
         state_dir=str(tmp_path), run_name="t", history="log+snapshot",
         uniformity_warn=0.9,
     )
+    base.update(kw)
+    cfg = Config(**base)
     cfg.validate()
     return cfg
+
+
+class RecordingBackend:
+    """Captures the RuleRequest instead of calling an LLM."""
+
+    name = "recording"
+
+    def __init__(self):
+        self.requests = []
+
+    def rule(self, req):
+        self.requests.append(req)
+        from applet.rule import RuleResult
+        return RuleResult(prompt="flat red tile")
 
 
 def run_steps(cfg, n=3, field=None):
@@ -114,6 +130,30 @@ def test_seed_modes(pal, tmp_path):
     cfg.seed_mode = "random"
     eng2 = Engine(cfg, f, make_backend(cfg), FakeGenerator(32, 8, pal))
     assert eng2.seed_for(0, 0, 0) != eng2.seed_for(0, 0, 0)
+
+
+def test_rule_render_modes(pal, tmp_path):
+    """rule_render (SPEC §2.6): separate -> five read_size tiles, no composite;
+    composite -> one 3*read_size cross, no separate."""
+    from applet.engine.pipeline import Engine
+
+    cfg = make_cfg(tmp_path / "sep", rule_render="separate")
+    f = Field.random(2, 8, pal, seed=1)
+    rec = RecordingBackend()
+    Engine(cfg, f, rec, FakeGenerator(32, 8, pal)).step()
+    assert len(rec.requests) == 2  # K=2
+    for r in rec.requests:
+        assert r.composite is None
+        assert set(r.separate) == {"center", "north", "east", "south", "west"}
+        assert all(v.shape == (32, 32, 3) for v in r.separate.values())
+
+    cfg2 = make_cfg(tmp_path / "comp", rule_render="composite")
+    f2 = Field.random(2, 8, pal, seed=1)
+    rec2 = RecordingBackend()
+    Engine(cfg2, f2, rec2, FakeGenerator(32, 8, pal)).step()
+    for r in rec2.requests:
+        assert r.separate is None
+        assert r.composite.shape == (96, 96, 3)
 
 
 def test_fake_generator_on_distribution(pal):

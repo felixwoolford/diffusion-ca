@@ -15,17 +15,37 @@ import numpy as np
 from PIL import Image
 
 from . import RuleRequest, RuleResult
-from .prompts import PROMPT_MAX, build_system_prompt, build_user_text
+from .prompts import (PROMPT_MAX, SEPARATE_INTRO, SEPARATE_ORDER,
+                      build_system_prompt, build_user_text)
 
 
 class RuleError(RuntimeError):
     pass
 
 
-def composite_to_data_url(composite: np.ndarray) -> str:
+def rgb_to_data_url(rgb: np.ndarray) -> str:
     buf = io.BytesIO()
-    Image.fromarray(composite, mode="RGB").save(buf, format="PNG")
+    Image.fromarray(rgb, mode="RGB").save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def build_user_content(req: RuleRequest) -> list[dict]:
+    """User message parts for either render mode (SPEC §2.6).
+
+    composite: [image, text].  separate: [intro text, 5 images, text] — the
+    image->role order is fixed in text (SEPARATE_INTRO), matching E3.
+    """
+    if req.separate is not None:
+        content: list[dict] = [{"type": "text", "text": SEPARATE_INTRO}]
+        for name, _ in SEPARATE_ORDER:
+            content.append({"type": "image_url",
+                            "image_url": {"url": rgb_to_data_url(req.separate[name])}})
+        content.append({"type": "text", "text": build_user_text(req)})
+        return content
+    return [
+        {"type": "image_url", "image_url": {"url": rgb_to_data_url(req.composite)}},
+        {"type": "text", "text": build_user_text(req)},
+    ]
 
 
 class LlamaCppBackend:
@@ -48,7 +68,8 @@ class LlamaCppBackend:
 
     def rule(self, req: RuleRequest) -> RuleResult:
         system = build_system_prompt(self.art_size, self.palette_n, arm=req.arm,
-                                     relation=self.relation, palette_hex=self.palette_hex)
+                                     relation=self.relation, palette_hex=self.palette_hex,
+                                     render=req.render)
         payload = {
             "model": self.model,
             "temperature": self.temperature,
@@ -58,10 +79,7 @@ class LlamaCppBackend:
             "chat_template_kwargs": {"enable_thinking": False},
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": composite_to_data_url(req.composite)}},
-                    {"type": "text", "text": build_user_text(req)},
-                ]},
+                {"role": "user", "content": build_user_content(req)},
             ],
         }
         body = json.dumps(payload).encode()

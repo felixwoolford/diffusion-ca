@@ -11,6 +11,17 @@ from . import RuleRequest
 
 PROMPT_MAX = 500
 
+#: Fixed image->role order for the `separate` render mode (SPEC §2.6):
+#: one one-tile image per tile, identity carried by the text, not by layout.
+SEPARATE_ORDER = (("center", "C"), ("north", "N"), ("east", "E"),
+                  ("south", "S"), ("west", "W"))
+
+SEPARATE_INTRO = (
+    "Here are five separate pixel-art tiles, one per image, in this order: "
+    "image 1 = C (center), image 2 = N (north), image 3 = E (east), "
+    "image 4 = S (south), image 5 = W (west)."
+)
+
 RELATIONS = {
     "evolve": (
         "The cell must evolve *together with* its neighbors: where a motif, "
@@ -28,7 +39,8 @@ RELATIONS = {
 
 def build_system_prompt(art_size: int, palette_n: int, arm: str,
                         relation: str = "evolve",
-                        palette_hex: list[str] | None = None) -> str:
+                        palette_hex: list[str] | None = None,
+                        render: str = "composite") -> str:
     frame = (
         f"You are the update rule of a cellular automaton whose cells are "
         f"{art_size}x{art_size} pixel-art tiles. You are describing a "
@@ -38,13 +50,23 @@ def build_system_prompt(art_size: int, palette_n: int, arm: str,
     if palette_hex:
         frame += " Exact palette (hex): " + " ".join(palette_hex) + "."
 
-    semantics = (
-        "You are shown one image: a cross layout of five tiles on a toroidal grid "
-        "(borders wrap). Labels are drawn in the top-left corner of each tile: "
-        "C is the CENTER tile — the cell whose next state you are writing; "
-        "N/E/S/W are its north/east/south/west neighbors. Read the positions from "
-        "the labels, never from their screen position."
-    )
+    if render == "separate":
+        semantics = (
+            "You are shown five SEPARATE images, one tile each, in a fixed "
+            "order: image 1 = C (center), image 2 = N (north), image 3 = E "
+            "(east), image 4 = S (south), image 5 = W (west). C is the CENTER "
+            "tile — the cell whose next state you are writing; N/E/S/W are its "
+            "north/east/south/west neighbors on a toroidal grid (borders wrap). "
+            "Use the image numbers given here, never any guess about layout."
+        )
+    else:
+        semantics = (
+            "You are shown one image: a cross layout of five tiles on a toroidal grid "
+            "(borders wrap). Labels are drawn in the top-left corner of each tile: "
+            "C is the CENTER tile — the cell whose next state you are writing; "
+            "N/E/S/W are its north/east/south/west neighbors. Read the positions from "
+            "the labels, never from their screen position."
+        )
     relation_text = RELATIONS[relation]
 
     if arm == "t2i":

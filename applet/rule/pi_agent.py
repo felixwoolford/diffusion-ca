@@ -11,6 +11,12 @@ Command shape (verified from `pi --help`, 2026-10-17):
   pi -p --no-tools --no-session --no-extensions --no-skills --no-mcp
      --no-context-files [--model PATTERN] --system-prompt <SYS>
      -- "@<composite.png>" "<user text>"
+
+Separate render mode (SPEC §2.6): five @image files in the fixed order
+(image 1 = C, 2 = N, 3 = E, 4 = S, 5 = W) with SEPARATE_INTRO as the first
+text part. Note: pi's docs only guarantee the @files are "included in the
+first prompt" — the exact part ordering is not documented; the system
+prompt states the fixed image order, so either layout is unambiguous.
 """
 from __future__ import annotations
 
@@ -21,7 +27,8 @@ from pathlib import Path
 
 from . import RuleRequest, RuleResult
 from .llamacpp import RuleError, _extract
-from .prompts import build_system_prompt, build_user_text
+from .prompts import (SEPARATE_INTRO, SEPARATE_ORDER, build_system_prompt,
+                      build_user_text)
 
 
 class PiAgentBackend:
@@ -40,19 +47,34 @@ class PiAgentBackend:
 
     def rule(self, req: RuleRequest) -> RuleResult:
         system = build_system_prompt(self.art_size, self.palette_n, arm=req.arm,
-                                     relation=self.relation, palette_hex=self.palette_hex)
+                                     relation=self.relation, palette_hex=self.palette_hex,
+                                     render=req.render)
         from PIL import Image
-        fd, tmp = tempfile.mkstemp(suffix=".png", prefix="sdca_rule_")
-        os.close(fd)
-        tmp_path = Path(tmp)
+        # one temp PNG per input image (composite: 1, separate: 5)
+        if req.separate is not None:
+            arrays = [req.separate[n] for n, _ in SEPARATE_ORDER]
+            first_text = SEPARATE_INTRO
+        else:
+            arrays = [req.composite]
+            first_text = None
+        tmps: list[Path] = []
         try:
-            Image.fromarray(req.composite, mode="RGB").save(tmp_path)
+            for arr in arrays:
+                fd, tmp = tempfile.mkstemp(suffix=".png", prefix="sdca_rule_")
+                os.close(fd)
+                p = Path(tmp)
+                Image.fromarray(arr, mode="RGB").save(p)
+                tmps.append(p)
             cmd = [self.pi_bin, "-p",
                    "--no-tools", "--no-session",
                    "--no-extensions", "--no-skills", "--no-mcp",
                    "--no-context-files", "--mode", "text",
                    "--system-prompt", system,
-                   "--", f"@{tmp_path}", build_user_text(req)]
+                   "--"]
+            if first_text is not None:
+                cmd.append(first_text)
+            cmd.extend(f"@{p}" for p in tmps)
+            cmd.append(build_user_text(req))
             if self.model:
                 cmd[1:1] = ["--model", self.model]
             try:
@@ -64,4 +86,5 @@ class PiAgentBackend:
                 raise RuleError(f"pi_agent exit {proc.returncode}: {proc.stderr[-1000:]}")
             return _extract(proc.stdout)
         finally:
-            tmp_path.unlink(missing_ok=True)
+            for p in tmps:
+                p.unlink(missing_ok=True)

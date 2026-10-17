@@ -24,6 +24,10 @@ relation: evolve      # evolve | contrast (neighbor relation dial, SPEC 2.8)
 
 # --- rule backend ---
 rule_backend: llamacpp    # llamacpp | pi_agent | template
+rule_render: composite    # composite | separate (SPEC 2.6): one labeled cross image
+                          #   vs five one-tile images; E3 (2026-10-17): both 100% on
+                          #   probe questions; separate is cheaper at 512 (1280 vs 2304
+                          #   visual tokens) and the only uncapped path to 1024
 llm_url: null             # llama.cpp OpenAI-compatible endpoint (container: http://127.0.0.1:8080;
                           #   model must be loaded there — see notes/DEV_NOTES.md)
 llm_model: qwen3.8-27b-ud-q6-k-xl-multimodal

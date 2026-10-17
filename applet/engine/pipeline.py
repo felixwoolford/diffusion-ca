@@ -241,9 +241,19 @@ class Engine:
     def _generate_cell(self, snap: Field, r: int, c: int, step: int) -> np.ndarray:
         cfg = self.cfg
         tiles = snap.neighborhood(r, c)
-        composite = render_cross(tiles, cfg.read_size)
-        req = RuleRequest(composite=composite, step=step, cell=(r, c), arm=cfg.arm,
-                          frame=self.frame, instruction=cfg.instruction)
+        if cfg.rule_render == "separate":
+            # five one-tile images, order fixed by SEPARATE_ORDER (SPEC §2.6)
+            req = RuleRequest(
+                composite=None,
+                separate={name: nearest_resize(tiles[name], cfg.read_size)
+                          for name in ("center", "north", "east", "south", "west")},
+                step=step, cell=(r, c), arm=cfg.arm,
+                frame=self.frame, instruction=cfg.instruction)
+        else:
+            req = RuleRequest(
+                composite=render_cross(tiles, cfg.read_size), separate=None,
+                step=step, cell=(r, c), arm=cfg.arm,
+                frame=self.frame, instruction=cfg.instruction)
         res = self.rule.rule(req)
 
         images: dict[str, np.ndarray] = {}

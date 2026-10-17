@@ -79,6 +79,16 @@ def test_system_prompt_palette_hex():
     assert "#ff0000" in sp
 
 
+def test_system_prompt_separate_render():
+    sp = build_system_prompt(32, 64, arm="edit_neighborhood", render="separate")
+    assert "five SEPARATE images" in sp
+    assert "image 1 = C" in sp and "image 5 = W" in sp
+    assert "Labels are drawn" not in sp  # separate mode has no drawn-in labels
+    # default stays composite
+    sp2 = build_system_prompt(32, 64, arm="t2i")
+    assert "cross layout" in sp2
+
+
 def test_user_text():
     t = build_user_text(req(step=7, cell=(2, 3), instruction="grow the crystals"))
     assert "Step 7" in t and "(2,3)" in t and "grow the crystals" in t
@@ -119,3 +129,46 @@ def test_llamacpp_disables_thinking(monkeypatch):
     res = b.rule(req())
     assert res.prompt == "a red tile"
     assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_llamacpp_separate_payload(monkeypatch):
+    """Separate render mode (SPEC §2.6): intro text, five image parts in the
+    fixed C/N/E/S/W order, question text last; separate-mode system prompt."""
+    import json
+    from applet.rule.llamacpp import LlamaCppBackend
+
+    captured = {}
+
+    class FakeResp:
+        def __init__(self, body):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self._body
+
+    def fake_urlopen(r, timeout=None):
+        captured["payload"] = json.loads(r.data)
+        return FakeResp(json.dumps(
+            {"choices": [{"message": {"content": "a red tile"}}]}).encode())
+
+    monkeypatch.setattr("applet.rule.llamacpp.urllib.request.urlopen",
+                        fake_urlopen)
+    tiles = {n: np.full((32, 32, 3), (i + 1) * 40, np.uint8)
+             for i, n in enumerate(("center", "north", "east", "south", "west"))}
+    b = LlamaCppBackend(url="http://x", model="m")
+    b.rule(RuleRequest(composite=None, separate=tiles, step=0, cell=(0, 0),
+                       arm="t2i", frame=frame_text(8, 8), instruction=""))
+    user = captured["payload"]["messages"][1]["content"]
+    assert user[0]["type"] == "text" and "image 1 = C" in user[0]["text"]
+    imgs = [p for p in user if p["type"] == "image_url"]
+    assert len(imgs) == 5
+    assert all(p["image_url"]["url"].startswith("data:image/png;base64,")
+               for p in imgs)
+    assert user[-1]["type"] == "text" and "Output the prompt now." in user[-1]["text"]
+    assert "five SEPARATE images" in captured["payload"]["messages"][0]["content"]

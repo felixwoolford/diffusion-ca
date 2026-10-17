@@ -76,6 +76,7 @@ class Config:
     relation: str = "evolve"             # "evolve" | "contrast" (neighbor relation dial, SPEC 2.8)
     # rule
     rule_backend: str = "llamacpp"
+    rule_render: str = "composite"       # "composite" | "separate" (SPEC 2.6)
     llm_url: str | None = None           # llama.cpp OpenAI-compatible endpoint
     llm_model: str = "qwen3.8-27b"
     rule_temperature: float = 1.0
@@ -121,6 +122,8 @@ class Config:
             errs.append(f"schedule must be one of {SCHEDULES}")
         if self.rule_backend not in RULE_BACKENDS:
             errs.append(f"rule_backend must be one of {RULE_BACKENDS}")
+        if self.rule_render not in ("composite", "separate"):
+            errs.append(f"rule_render must be 'composite' or 'separate'")
         if self.generator not in GENERATORS:
             errs.append(f"generator must be one of {GENERATORS}")
         if self.seed_mode not in SEED_MODES:
