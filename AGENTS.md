@@ -44,8 +44,7 @@ You are allowed to install packages and tools as needed in your container.
 
 - This is a local repository: **commit to the current branch only. Never push,
   force-push, or rewrite history.** The user manages remotes.
-- Keep commits small and coherent; prefer several small commits over one
-  large one. A task that is not committed is not done.
+- Keep commits small and coherent. A task that is not committed is not done.
 - never commit or add in parallel with a file edit.
 - Commit messages: imperative, scoped summary, e.g.
   `workflows: add edit_neigh_ca.json with five reference slots`,
