@@ -29,6 +29,7 @@ class ArmSpec:
     prompt_field: str = "value"    # its text input name
     size_via: str = "empty_latent"  # "resolution_selector" | "empty_latent"
     size_node: str = ""            # node setting the output size
+    size_extra: dict = field(default_factory=dict)  # graph-specific size inputs kept constant
     image_nodes: dict[str, str] = field(default_factory=dict)  # "image_1".."image_n" -> LoadImage node
     seed_node: str = ""            # KSampler seed input
 
@@ -36,7 +37,9 @@ class ArmSpec:
     def defaults(cls, arm: str) -> "ArmSpec":
         if arm == "t2i":
             return cls(workflow="workflows/t2i_ca.json", prompt_node="497",
-                       size_via="resolution_selector", size_node="13", seed_node="490")
+                       size_via="resolution_selector", size_node="13",
+                       size_extra={"aspect_ratio": "1:1 (Square)", "multiple": 8},
+                       seed_node="490")
         if arm == "edit_self":
             return cls(workflow="workflows/edit_ca.json", prompt_node="520",
                        size_via="empty_latent", size_node="505",

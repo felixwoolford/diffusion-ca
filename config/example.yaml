@@ -1,0 +1,74 @@
+# SD-CA run config — example (copy to config/<run>.local.yaml and edit; local files are gitignored)
+# Every knob from SPEC section 3. Null values must be provided per run.
+
+# --- field ---
+grid_n: 16            # cells per side (32 is an open variant)
+art_size: 32          # ground-truth tile size in px
+render_scale: 2       # display = art x scale (default display 1024x1024)
+palette_n: 64
+palette_path: null    # e.g. config/palette_64.json (picked in E5) — required to run
+initial_field: null   # square PNG (grid_n*art_size px) to tile the initial field; null -> random
+
+# --- sizes ---
+write_size: 1024      # generation size; test 512 (alignment-matched for 32-art), 256
+read_size: 512        # neighborhood render size for the rule LLM; multiple of 32
+
+# --- dynamics ---
+arm: edit_self        # t2i | edit_self | edit_neighborhood
+schedule: random_uniform  # random_uniform | ring_scan | all
+K: 16                 # cells per step (main speed dial)
+seed_mode: random     # random | deterministic (reproducible experiments)
+seed: null            # base seed for deterministic mode
+instruction: ""       # per-run evolution instruction shown to the rule
+relation: evolve      # evolve | contrast (neighbor relation dial, SPEC 2.8)
+
+# --- rule backend ---
+rule_backend: llamacpp    # llamacpp | pi_agent | template
+llm_url: null             # llama.cpp OpenAI-compatible endpoint, e.g. http://127.0.0.1:8001
+llm_model: qwen3.8-27b
+rule_temperature: 1.0
+pi_bin: pi                # pi_agent: headless pi executable
+pi_model: null            # pi_agent: model pattern (null -> pi default model)
+pi_timeout: 600           # pi_agent: per-call timeout in seconds
+# NOTE (dev container): the rule model is the dev model itself (qwen3.8-27b via
+# llama.cpp). With rule_backend: pi_agent use concurrency: 1 — rule calls are
+# sequenced, not overlapped with the dev agent's own model work (see notes/DEV_NOTES.md).
+
+# --- generation ---
+comfy_url: null         # http://127.0.0.1:8188 (5090/32GB) or :8189 (4080/16GB)
+generator: comfy        # comfy | fake (deterministic tiles, no server; pipeline tests only)
+concurrency: 4          # parallel rule/generation dispatch (server serializes anyway)
+
+# --- persistence ---
+state_dir: state
+images_out_dir: images_out
+run_name: run
+history: log+snapshot   # none | log+snapshot (ring/full planned)
+
+# --- metrics / collapse watch (SPEC 2.8) ---
+uniformity_warn: 0.5
+
+# --- arm -> workflow wiring (SPEC 2.4 node ids; verified against base graphs 2026-10-17) ---
+# arms:
+#   t2i:
+#     workflow: workflows/t2i_ca.json
+#     prompt_node: "497"
+#     size_via: resolution_selector   # node 13 (megapixels) — or empty_latent node 488
+#     size_node: "13"
+#     seed_node: "490"
+#   edit_self:
+#     workflow: workflows/edit_ca.json
+#     prompt_node: "520"
+#     size_via: empty_latent          # node 505 width/height
+#     size_node: "505"
+#     image_nodes: {image_1: "470"}
+#     seed_node: "507"
+#   edit_neighborhood:
+#     workflow: workflows/edit_neigh_ca.json
+#     prompt_node: "520"
+#     size_via: empty_latent
+#     size_node: "505"
+#     image_nodes: {image_1: "470", image_2: "471", image_3: "473", image_4: "474", image_5: "476"}
+#                   # planned ids for the five LoadImage slots — 472/475 are taken in edit.json;
+#                   # confirm the real ids when workflows/edit_neigh_ca.json is created
+#     seed_node: "507"
