@@ -5,6 +5,41 @@ getting them to run. The original workflows must not be edited — copy them and
 the copy. (Server availability and which model file a server has are temporary; check
 `GET /models/diffusion_models` each time, as described in the skill.)
 
+## REVISION 2026-10-17 — the base files changed; read this first
+
+The `t2i.json` and `edit.json` described below have been **replaced with direct
+(no-enhancer) variants**. The enhancer (PE) graphs described here are still the
+current shape of `t2i_with_pe.json` / `edit_with_pe.json` (verified 2026-10-17).
+Sections marked *superseded* apply to those with-PE files, not to the base files.
+
+Current base graphs (verified against the files 2026-10-17):
+
+**t2i.json — 12 nodes, direct:** `497` (`PrimitiveStringMultiline`) is the prompt,
+feeding `485` (`TextEncodeQwenImage21`) directly. There is **no** `491`/`494`/`495`
+enhancer/switch chain in this file. `13` (`ResolutionSelector`) → `488`
+(`EmptyLatentImage`) → `490` (`KSampler`); `484` UNET, `499` turbo LoRA,
+`496` QwenImage21Cache, `461` SaveImageAdvanced (from `489` VAEDecode).
+
+**edit.json — 15 nodes, direct prompt, TWO references:** `520`
+(`PrimitiveStringMultiline`) is the edit instruction, feeding `510`
+(`TextEncodeQwenImage21`) directly. There is **no** `511`–`516` enhancer chain in
+this file. References: `470` (`LoadImage`) → `510.images.image_1`, `475`
+(`LoadImage`) → `510.images.image_2`. `472` (`ImageCompare`) is display-only.
+`508` (`ComfySwitchNode`) as described below: `switch: true` → `505`
+(`EmptyLatentImage`, fixed square, **set this for output size**); `switch: false` →
+`510` output 2 (input aspect ratio). `507` KSampler; `502`/`503`/`504` UNET/CLIP/VAE;
+`509` QwenImage21Cache; `517` turbo LoRA; `461` SaveImageAdvanced (from `506`).
+
+**Single-image edit (current file):** delete node `475` *and* remove
+`images.image_2` from `510`'s inputs. The `515`/`516` steps below only apply to the
+with-PE file (which has the enhancer).
+
+**Single-reference and five-reference copies for SD-CA** (built 2026-10-17):
+`workflows/edit_ca.json` = edit.json minus `475`/`images.image_2`; 
+`workflows/edit_neigh_ca.json` = edit.json plus new `LoadImage` nodes `471`/`473`/`474`
+wired as `images.image_3`/`4`/`5` on `510` (`472` is taken by ImageCompare, so the
+slot ids are not contiguous).
+
 ## General
 
 - Both workflows already include the turbo LoRA (`LoraLoaderModelOnly` → 8 steps,
@@ -69,18 +104,20 @@ the copy. (Server availability and which model file a server has are temporary; 
   and the encoder then painted that refusal text as an image (a handwritten page
   dissolving into illegibility, ending "— END —").
 
-## t2i.json
+## t2i.json — *superseded by the 2026-10-17 revision (describes t2i_with_pe.json)*
 
 - Node `491` (`TextGenerate`) holds the final, fully-rewritten descriptive prompt.
   The switch node `494` (`switch: true`) selects it, so overriding `491.prompt`
   changes what gets generated. Node `495` is just an unused prompt-rewriting
   system prompt.
 - Node `13` (`ResolutionSelector`) sets aspect ratio / megapixels / multiple;
-  default is 1:1, 1 MP → 1024×1024.
+  default is 1:1, 1 MP → 1024×1024. (Node 13 is unchanged in the current direct
+t2i.json.)
 
-## edit.json
+## edit.json — *mostly current; the prompt-flow bullet below is superseded (with-PE file)*
 
 - `470` = `LoadImage` for image_1 (the image being edited); `475` = image_2
+  (both still true in the current direct file).
   (content/style reference). Both feed `510` (`TextEncodeQwenImage21`) via
   `images.image_1` / `images.image_2`.
 - `510` outputs `[CONDITIONING, CONDITIONING, LATENT]`. Output 2 is a latent whose
@@ -91,13 +128,16 @@ the copy. (Server availability and which model file a server has are temporary; 
   - `switch: false` → `510` output 2, so the output follows the input image's
     aspect ratio (e.g. 977×1303 in → 992×1312 out).
 - Single-image edit: you must remove the second reference or validation fails
-  (HTTP 400, `KeyError: '515'` on node `516`). The reference is wired in **three**
-  places: delete nodes `475` and `515` (`BatchImagesNode`), remove
-  `images.image_2` from `510`, **and** remove the `image` input from `516`.
+  (HTTP 400, `KeyError: '515'` on node `516` — in the with-PE file). The reference
+  is wired in **three** places: delete nodes `475` and `515` (`BatchImagesNode`),
+  remove `images.image_2` from `510`, **and** remove the `image` input from `516`
   (`516` is the LLM prompt-enhancer `TextGenerate`; its `image` input goes through
-  `515`, which references the deleted `475`.)
-- Prompt flow: `516` (LLM enhancer, system prompt in `512`) → `514`
-  (`ComfySwitchNode`, `switch: true`) → `513` → `510`. The enhancer rewrites your
+  `515`, which references the deleted `475`). *Current direct edit.json only needs
+  the first two: delete `475`, remove `images.image_2` from `510`.*
+- Prompt flow (with-PE file only — the current direct edit.json has no enhancer
+  chain; `520` feeds `510` directly): `516` (LLM enhancer, system prompt in
+  `512`) → `514` (`ComfySwitchNode`, `switch: true`) → `513` → `510`. The enhancer
+  rewrites your
   instruction into the actual edit prompt; it may do so in Chinese (its system
   prompt makes a language decision) — the model handles that fine. You can bypass
   it by setting `514` to `false` and supplying `on_false` with your own prompt.
