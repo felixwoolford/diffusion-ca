@@ -24,8 +24,9 @@ relation: evolve      # evolve | contrast (neighbor relation dial, SPEC 2.8)
 
 # --- rule backend ---
 rule_backend: llamacpp    # llamacpp | pi_agent | template
-llm_url: null             # llama.cpp OpenAI-compatible endpoint, e.g. http://127.0.0.1:8001
-llm_model: qwen3.8-27b
+llm_url: null             # llama.cpp OpenAI-compatible endpoint (container: http://127.0.0.1:8080;
+                          #   model must be loaded there — see notes/DEV_NOTES.md)
+llm_model: qwen3.8-27b-ud-q6-k-xl-multimodal
 rule_temperature: 1.0
 pi_bin: pi                # pi_agent: headless pi executable
 pi_model: null            # pi_agent: model pattern (null -> pi default model)
@@ -68,7 +69,6 @@ uniformity_warn: 0.5
 #     prompt_node: "520"
 #     size_via: empty_latent
 #     size_node: "505"
-#     image_nodes: {image_1: "470", image_2: "471", image_3: "473", image_4: "474", image_5: "476"}
-#                   # planned ids for the five LoadImage slots — 472/475 are taken in edit.json;
-#                   # confirm the real ids when workflows/edit_neigh_ca.json is created
+#     image_nodes: {image_1: "470", image_2: "475", image_3: "471", image_4: "473", image_5: "474"}
+#                   # edit_neigh_ca.json = edit.json + LoadImages 471/473/474 wired as image_3..5 on 510
 #     seed_node: "507"

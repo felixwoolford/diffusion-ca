@@ -46,7 +46,9 @@ class ArmSpec:
                        image_nodes={"image_1": "470"}, seed_node="507")
         return cls(workflow="workflows/edit_neigh_ca.json", prompt_node="520",
                    size_via="empty_latent", size_node="505",
-                   image_nodes={"image_1": "470"}, seed_node="507")  # image_2..5 filled by the edit_neigh workflow copy
+                   image_nodes={"image_1": "470", "image_2": "475",
+                                "image_3": "471", "image_4": "473",
+                                "image_5": "474"}, seed_node="507")
 
 
 @dataclass
