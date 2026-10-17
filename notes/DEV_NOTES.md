@@ -58,11 +58,21 @@ backend's prompt goes straight into the `PrimitiveStringMultiline` node.
   - `qwen3.8-27b-ud-q6-k-xl` — LOADED; this is the dev model. It **refuses image
     input** (text-only deployment; a test `pi -p` with an @image asked Felix to
     switch models). So `pi_agent` with the default model CANNOT read tiles.
-  - `qwen3.8-27b-ud-q6-k-xl-multimodal` — **UNLOADED**; the rule model. No
-    auto-load and no load endpoint found from inside the container (400 "model
-    is not loaded"; probed /api/models, /models/load, ...). Felix (or the host)
-    must load it before any vision rule call. `llamacpp` backend config:
+  - `qwen3.8-27b-ud-q6-k-xl-multimodal` — **LOADED since 2026-10-17 ~18:30 UTC**
+    (Felix loads it on demand; it is slower and has a smaller context than the
+    text deployment — keep calls minimal). No auto-load and no load endpoint
+    from inside the container (400 "model is not loaded"; probed /api/models,
+    /models/load, ...). `llamacpp` backend config:
     `llm_url: http://127.0.0.1:8080`, `llm_model: qwen3.8-27b-ud-q6-k-xl-multimodal`.
+  - **It is a *thinking* model.** Responses carry `reasoning_content`; without
+    `"chat_template_kwargs": {"enable_thinking": false}` in the chat payload
+    the entire max_tokens budget goes to reasoning and the visible `content`
+    is empty (finish_reason=length). The engine `llamacpp` backend sets this
+    (E3, 2026-10-17; regression-tested). `pi_agent` unaffected.
+  - **Image cap: 4096 visual tokens (2048×2048).** Larger images are
+    downscaled server-side (verified via prompt_tokens in E3: a 3072²
+    composite is billed as exactly 4096 visual tokens). So read_size 1024
+    composites (3072²) are served at ~683 px/tile.
   - pi's model catalog (`/root/.pi/agent/models.json`) already knows the
     multimodal id (input: text+image, temp 0.7), so `pi_agent` could use
     `--model qwen3.8-27b-ud-q6-k-xl-multimodal` once it is loaded.
@@ -181,12 +191,15 @@ E5 and for reading every fidelity number until then.**
 
 Stage 1 = **engine core first**: headless modules in `applet/engine/` +
 `applet/rule/` with unit tests, no remote generation yet. ✅ done.
-Stage 2 = **experiments E1–E7 (SPEC §6), approved 2026-10-17**. Re-read the spec
-on 2026-10-17 (post-compaction): E1 = **checkerboard prompt at 1024²** — do the
-block edges land on 16-px multiples? (confirms the 16× VAE factor, §4). E2 =
-write-size matrix {1024, 512, 256} × all three arms. E3 = read-size matrix
-{256, 512, 1024} with fixed probe questions for the rule's vision (needs the
-multimodal model loaded). E4 = frame adherence/blockiness. E5 = palette. E6 =
-collapse watch (20–50 steps, K=16, each arm). E7 = pixel-art LoRA A/B.
-Experiment scripts live in `experiments/`; results + evidence in `notes/E*.md`.
-Then GUI (toolkit still unconfirmed, PySide6 suggested).
+Stage 2 = **experiments E1–E7 (SPEC §6), approved 2026-10-17**.
+Status 2026-10-17: **E1 ✅** (16× VAE factor confirmed), **E2 ✅** (write-size
+matrix; edit arms ≈ lossless copy channel; 512 sweet spot), **E3 ✅** (rule
+reads composites 28/28 at all read sizes; 1024 capped at ~683 px/tile by the
+4096-visual-token image cap), **E4 ✅** (frame holds; 512 flattest; dev64
+palette far from model color space). **E5 pending** (palette from model
+outputs, incl. a quantize-stability metric), **E6 pending** (collapse watch),
+**E7 pending** (pixel-art LoRA A/B). Felix runs experiments one at a time with
+explicit go-ahead per experiment (2026-10-17: "don't proceed with any other
+experiment yet" until told). Experiment scripts live in `experiments/`;
+results + evidence in `notes/E*.md`. Then GUI (toolkit still unconfirmed,
+PySide6 suggested).
