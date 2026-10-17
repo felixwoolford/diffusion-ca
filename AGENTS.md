@@ -46,6 +46,7 @@ You are allowed to install packages and tools as needed in your container.
   force-push, or rewrite history.** The user manages remotes.
 - Keep commits small and coherent; prefer several small commits over one
   large one. A task that is not committed is not done.
+- never commit or add in parallel with a file edit.
 - Commit messages: imperative, scoped summary, e.g.
   `workflows: add edit_neigh_ca.json with five reference slots`,
   `notes: E2 write-size matrix results`, `engine: block-mode quantize`.
